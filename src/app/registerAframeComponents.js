@@ -44,9 +44,10 @@ export default function registerAframeComponents(options) {
 
     // Menu
     setShowMenu,
-    setControlMode,
-    setLeftArmMode,
-    setIndicator,
+    setHmdControl,
+    setShowVideo,
+    // setControlMode,
+    setShowModel,
     setShareControl,
     setWholeBodyControl,
 
@@ -63,7 +64,7 @@ export default function registerAframeComponents(options) {
   } = options;
   
   // set rendered state after a short delay to ensure the scene is ready
-  setTimeout(() => set_rendered(true), 16.67); // ~ 60 FPS
+  setTimeout(() => set_rendered(true), 100); 
 
   /* ========================== Robot Model ========================= */
   AFRAME.registerComponent('robot-click', {
@@ -187,58 +188,10 @@ export default function registerAframeComponents(options) {
         this.hmdProxy.quaternion.set(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
         // this.hmdProxy.updateMatrixWorld();
 
-        // 同步到你的逻辑中
         set_controller_object_cam(this.hmdProxy);
         // console.log('HMD Position:', this.hmdProxy.position);
         // console.log('HMD Rotation:', this.hmdProxy.quaternion);
       }
-    }
-  });
-
-
-  AFRAME.registerComponent('jtext', {
-    schema: {
-      text: { type: 'string', default: '' },
-      width: { type: 'number', default: 1 },
-      height: { type: 'number', default: 0.12 },
-      color: { type: 'string', default: 'black' },
-      background: { type: 'string', default: 'white' },
-      border: { type: 'string', default: 'black' }
-    },
-    init: function () {
-      const el = this.el;
-      const data = this.data;
-      const bg = document.createElement('a-plane');
-      bg.setAttribute('width', data.width);
-      bg.setAttribute('height', data.height);
-      bg.setAttribute('color', data.background);
-      bg.setAttribute('position', '0 0 0.01');
-      bg.setAttribute('opacity', '0.8');
-      const text = document.createElement('a-entity');
-      text.setAttribute('troika-text', {
-        value: data.text,
-        align: 'center',
-        color: data.color,
-        fontSize: 0.05,
-        maxWidth: data.width * 0.9,
-        font: "BIZUDPGothic-Bold.ttf",
-      });
-      text.setAttribute('position', '0 0 0.01');
-      this.text = text;
-      el.appendChild(bg);
-      el.appendChild(text);
-    },
-    update: function (oldData) {
-      const data = this.data;
-      this.text.setAttribute('troika-text', {
-        value: data.text,
-        align: 'center',
-        color: data.color,
-        fontSize: 0.05,
-        maxWidth: data.width * 0.95,
-        font: "BIZUDPGothic-Bold.ttf",
-      });
-      this.text.setAttribute('position', '0 0 0.01');
     }
   });
 
@@ -272,7 +225,7 @@ export default function registerAframeComponents(options) {
     optimizeFPS: function (session) {
       if (session.supportedFrameRates) {
         // Quest 3 FPS [60, 72, 80, 90, 120]. Note: higher fps usually cause overheating and battery drain.
-        const targetFPS = 60; 
+        const targetFPS = 72; 
         
         // Find max supported FPS (if 72 is not supported, fall back to highest available)
         const maxSupported = Math.max(...session.supportedFrameRates);
@@ -289,15 +242,12 @@ export default function registerAframeComponents(options) {
         console.log('ℹ️ Current Environment does not support WebXR Frame Rate API');
       }
 
-      // ✅ 降低渲染分辨率（减少 GPU 负载）
       const renderer = this.el.renderer;
       const xr = renderer.xr;
       
-      // 设置分辨率缩放比例（0.5-1.0，越小性能越好但画质越差）
-      const resolutionScale = 0.7; // 推荐 0.7-0.9，Quest 3 默认是 1.0
+      const resolutionScale = 1.0; 
       
       if (xr && xr.enabled) {
-        // WebXR 的分辨率缩放
         const baseLayer = session.renderState.baseLayer;
         if (baseLayer) {
           const currentWidth = baseLayer.framebufferWidth;
@@ -309,11 +259,10 @@ export default function registerAframeComponents(options) {
             })
           });
           
-          console.log(`📐 分辨率缩放: ${(resolutionScale * 100).toFixed(0)}% (${currentWidth}x${currentHeight} → ${Math.floor(currentWidth * resolutionScale)}x${Math.floor(currentHeight * resolutionScale)})`);
+          console.log(`Resolution Scale: ${(resolutionScale * 100).toFixed(0)}% (${currentWidth}x${currentHeight} → ${Math.floor(currentWidth * resolutionScale)}x${Math.floor(currentHeight * resolutionScale)})`);
         }
       }
       
-      // ✅ 设置 A-Frame 渲染器的像素比率（备用方案）
       renderer.setPixelRatio(resolutionScale);
     }
   });
@@ -401,32 +350,6 @@ export default function registerAframeComponents(options) {
       const box = new THREE.Box3().setFromObject(mesh).expandByVector(padding);
 
       this.helper.box.copy(box);
-    }
-  });
-  
-
-  AFRAME.registerComponent('follow-camera', {
-    schema: {
-      offset: { type: 'vec3', default: { x: 0, y: 0, z: -1 } } // Offset relative to the camera
-    },
-    tick: function () {
-      const cameraEl = this.el.sceneEl.camera.el; // Get the camera entity
-      if (!cameraEl) return;
-
-      // Get the camera's world position and rotation
-      const cameraWorldPosition = new THREE.Vector3();
-      const cameraWorldRotation = new THREE.Euler();
-      cameraEl.object3D.getWorldPosition(cameraWorldPosition);
-      cameraEl.object3D.getWorldRotation(cameraWorldRotation);
-
-      // Apply the offset relative to the camera's position
-      const offset = new THREE.Vector3(this.data.offset.x, this.data.offset.y, this.data.offset.z);
-      offset.applyEuler(cameraWorldRotation); // Rotate the offset based on the camera's rotation
-      const newPosition = cameraWorldPosition.add(offset);
-
-      // Update the position and rotation of the entity
-      this.el.object3D.position.copy(newPosition);
-      this.el.object3D.rotation.copy(cameraWorldRotation);
     }
   });
 
@@ -538,92 +461,227 @@ export default function registerAframeComponents(options) {
     }
   });
 
-  // AFRAME.registerComponent('stereo-split', {
-  //   schema: {
-  //     eye: { type: 'string', default: 'left' }, // 'left', 'right', or 'both'
-  //     videoId: { type: 'string', default: '' },  // ID of the <video> element
-  //     width: { type: 'number', default: 1 },
-  //     height: { type: 'number', default: 1 },
-  //   },
-  //   init() {
-  //     const videoEl = document.getElementById(this.data.videoId);
-  //     if (!videoEl || videoEl.tagName !== 'VIDEO') {
-  //       console.warn('Video element not found or invalid:', this.data.videoId);
-  //       return;
-  //     }
+  // ========================== Fisheye Screen Geometry =========================
+  // ---------- Newton's iteration method: Given the post-distortion radius r, solve for the incident angle theta. ----------
+  function invertFisheyeTheta(r, k1, k2, k3, k4, iterations = 10) {
+    let theta = r; // 初始猜测值:畸变较小时 theta ≈ r
+    for (let i = 0; i < iterations; i++) {
+      const t2 = theta * theta;
+      const t4 = t2 * t2;
+      const t6 = t4 * t2;
+      const t8 = t4 * t4;
 
-  //     this.videoEl = videoEl;
-  //     this.videoEl.setAttribute('crossorigin', 'anonymous');
-  //     this.videoEl.setAttribute('playsinline', 'true');
-  //     this.videoEl.play();
+      const f = theta * (1 + k1*t2 + k2*t4 + k3*t6 + k4*t8) - r;
+      const fPrime = 1 + 3*k1*t2 + 5*k2*t4 + 7*k3*t6 + 9*k4*t8;
 
-  //     const texture = new THREE.VideoTexture(this.videoEl);
-  //     texture.colorSpace = THREE.SRGBColorSpace;
+      if (Math.abs(fPrime) < 1e-9) break;
+      theta -= f / fPrime;
+    }
+    return theta;
+  }
 
-  //     // 关键：根据 eye 设置纹理的 repeat 和 offset
-  //     if (this.data.eye === 'left') {
-  //       texture.repeat.set(0.5, 1);
-  //       texture.offset.set(0, 0);
-  //     } else if (this.data.eye === 'right') {
-  //       texture.repeat.set(0.5, 1);
-  //       texture.offset.set(0.5, 0);
-  //     }
+  // ---------- Screen geometry based on distortion calibration parameters. ----------
 
-  //     this.el.setAttribute('material', {
-  //       shader: 'flat',
-  //       src: texture,
-  //       side: 'double'
-  //     });
-
-  //     this.el.setAttribute('geometry', {
-  //       primitive: 'plane',
-  //       width: this.data.width,
-  //       height: this.data.height,
-  //     });
-
-  //     this.update();
-  //   },
-  //   update() {
-  //     const mesh = this.el.getObject3D('mesh');
-  //     if (!mesh) return;
-
-  //     switch (this.data.eye) {
-  //       case 'left':
-  //         mesh.layers.set(1); // A-Frame 左眼图层
-  //         break;
-  //       case 'right':
-  //         mesh.layers.set(2); // A-Frame 右眼图层
-  //         break;
-  //       default:
-  //         mesh.layers.set(0); // 双眼可见
-  //     }
-  //   }
-  // });
-
-    AFRAME.registerComponent('stereo-split', {
+  // Screen Geometry for Fisheye Camera (e.g., VRCam.02)
+  AFRAME.registerGeometry('fisheye-screen', {
     schema: {
-      // --- 核心参数 ---
+      fx: { type: 'number', default: 597.46983283 },
+      fy: { type: 'number', default: 596.93842125 },
+      cx: { type: 'number', default: 691.10281286 },
+      cy: { type: 'number', default: 704.46497326 },
+      k1: { type: 'number', default: -0.05007161 },
+      k2: { type: 'number', default:  0.00713101 },
+      k3: { type: 'number', default: -0.01297023 },
+      k4: { type: 'number', default:  0.00511741 },
+
+      texWidth: { type: 'number', default: 1400 },  // single-eye texture width
+      texHeight: { type: 'number', default: 1400 }, // single-eye texture height
+      eyeOffsetX: { type: 'number', default: 0 },   // left eye 0, right eye 0.5 (UV offset in the entire SBS texture)
+
+      radius: { type: 'number', default: 100 },      // screen distance from the observer
+      segmentsWidth: { type: 'number', default: 64 },
+      segmentsHeight: { type: 'number', default: 64 },
+      maxTheta: { type: 'number', default: 100 },     // Upper limit for incident angle truncation (degrees), to prevent numerical explosion during edge extrapolation.
+    },
+
+    init: function (data) {
+      const geometry = new THREE.BufferGeometry();
+      const positions = [];
+      const uvs = [];
+      const indices = [];
+
+      const segW = data.segmentsWidth;
+      const segH = data.segmentsHeight;
+      const maxThetaRad = THREE.MathUtils.degToRad(data.maxTheta);
+
+      for (let iy = 0; iy <= segH; iy++) {
+        const py = (iy / segH) * data.texHeight; 
+
+        for (let ix = 0; ix <= segW; ix++) {
+          const px = (ix / segW) * data.texWidth; 
+
+          // Pixel coordinates -> Normalized camera coordinates
+          const x = (px - data.cx) / data.fx;
+          const y = (py - data.cy) / data.fy;
+          const r = Math.sqrt(x * x + y * y);
+          const phi = Math.atan2(y, x);
+
+          // Newton's iteration method: Invert the incident angle theta, and truncate it to avoid divergence in the image edges (pure black regions).
+          let theta = invertFisheyeTheta(r, data.k1, data.k2, data.k3, data.k4);
+          theta = Math.min(theta, maxThetaRad);
+
+          // Based on the incident angle and azimuth, place the pixel on the sphere in the corresponding direction (with the observer facing the -Z direction).
+          const posX = data.radius * Math.sin(theta) * Math.cos(phi);
+          const posY = data.radius * Math.sin(theta) * Math.sin(phi);
+          const posZ = -data.radius * Math.cos(theta);
+
+          positions.push(posX, posY, posZ);
+
+          // Linear UV: Directly corresponds to the pixel's position within the texture (offset by `eyeOffsetX` for the left and right eyes).
+          const u = data.eyeOffsetX + (px / data.texWidth) * 0.5;
+          const v = py / data.texHeight; // If the image is upside down, change to 1.0 - py/data.texHeight
+          uvs.push(u, v);
+        }
+      }
+
+      for (let iy = 0; iy < segH; iy++) {
+        for (let ix = 0; ix < segW; ix++) {
+          const a = iy * (segW + 1) + ix;
+          const b = a + 1;
+          const c = a + (segW + 1);
+          const d = c + 1;
+          indices.push(a, c, b, b, c, d);
+        }
+      }
+
+      geometry.setIndex(indices);
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.computeVertexNormals();
+
+      this.geometry = geometry;
+    },
+  });
+
+  // Screen for Pinhole Camera, (e.g., Zed-mini)
+  AFRAME.registerGeometry('pinhole-screen', {
+    schema: {
+      fx: { type: 'number', default: 788.41415049 },
+      fy: { type: 'number', default: 787.3765135 },
+      cx: { type: 'number', default: 655.01692926 },
+      cy: { type: 'number', default: 357.82862631 },
+      k1: { type: 'number', default: -0.3506601 },
+      k2: { type: 'number', default: 0.18558038 },
+      k3: { type: 'number', default: -0.00065609 },
+      p1: { type: 'number', default: 0.00100313 },
+      p2: { type: 'number', default: -0.05786136 },
+
+      texWidth: { type: 'number', default: 1280 },  
+      texHeight: { type: 'number', default: 720 },  
+      eyeOffsetX: { type: 'number', default: 0 },   
+
+      radius: { type: 'number', default: 100 },     
+      segmentsWidth: { type: 'number', default: 64 },
+      segmentsHeight: { type: 'number', default: 64 },
+      fovMargin: { type: 'number', default: 1.0 },  
+    },
+
+    init: function (data) {
+      const geometry = new THREE.BufferGeometry();
+      const positions = [];
+      const uvs = [];
+      const indices = [];
+
+      const segW = data.segmentsWidth;
+      const segH = data.segmentsHeight;
+
+      const xuMin = ((0 - data.cx) / data.fx) * data.fovMargin;
+      const xuMax = ((data.texWidth - data.cx) / data.fx) * data.fovMargin;
+      const yuMin = ((0 - data.cy) / data.fy) * data.fovMargin;
+      const yuMax = ((data.texHeight - data.cy) / data.fy) * data.fovMargin;
+
+      for (let iy = 0; iy <= segH; iy++) {
+        const yu = yuMin + (iy / segH) * (yuMax - yuMin);
+
+        for (let ix = 0; ix <= segW; ix++) {
+          const xu = xuMin + (ix / segW) * (xuMax - xuMin);
+
+          const r2 = xu * xu + yu * yu;
+          const r4 = r2 * r2;
+          const r6 = r4 * r2;
+          const radial = 1 + data.k1 * r2 + data.k2 * r4 + data.k3 * r6;
+
+          const xd = xu * radial + 2 * data.p1 * xu * yu + data.p2 * (r2 + 2 * xu * xu);
+          const yd = yu * radial + data.p1 * (r2 + 2 * yu * yu) + 2 * data.p2 * xu * yu;
+
+          const px = xd * data.fx + data.cx;
+          const py = yd * data.fy + data.cy;
+
+          const posX = xu * data.radius;
+          const posY = -yu * data.radius; 
+          const posZ = -data.radius;
+
+          positions.push(posX, posY, posZ);
+
+          const u = data.eyeOffsetX + THREE.MathUtils.clamp(px / data.texWidth, 0, 1) * 0.5;
+          const v = THREE.MathUtils.clamp(py / data.texHeight, 0, 1);
+          uvs.push(u, v);
+        }
+      }
+
+      for (let iy = 0; iy < segH; iy++) {
+        for (let ix = 0; ix < segW; ix++) {
+          const a = iy * (segW + 1) + ix;
+          const b = a + 1;
+          const c = a + (segW + 1);
+          const d = c + 1;
+          indices.push(a, c, b, b, c, d);
+        }
+      }
+
+      geometry.setIndex(indices);
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.computeVertexNormals();
+
+      this.geometry = geometry;
+    },
+  });
+
+  AFRAME.registerComponent('stereo-split', {
+    schema: {
       eye: { type: 'string', default: 'left' },
       videoId: { type: 'string', default: '' },
 
-      // --- 几何体类型 ---
-      // 您可以保留这个，以便在 'plane', 'cylinder', 'sphere' 之间切换
-      geometryType: { type: 'string', default: 'sphere' }, 
+      lensModel: { type: 'string', default: 'fisheye' }, // 'fisheye' | 'pinhole'
 
-      // --- 通用参数 ---
       radius: { type: 'number', default: 100 },
-      
-      // --- 球面 (sphere) 参数 ---
       segmentsWidth: { type: 'number', default: 64 },
       segmentsHeight: { type: 'number', default: 64 },
-      phiStart: { type: 'number', default: 0 },
-      phiLength: { type: 'number', default: 360 },
-      thetaStart: { type: 'number', default: 0 },
-      thetaLength: { type: 'number', default: 180 },
 
-      // --- 平面 (plane) 参数 (备用) ---
-      width: { type: 'number', default: 1 },
-      height: { type: 'number', default: 1 },
+      // 共用内参
+      fx: { type: 'number', default: 597.46983283 },
+      fy: { type: 'number', default: 596.93842125 },
+      cx: { type: 'number', default: 691.10281286 },
+      cy: { type: 'number', default: 704.46497326 },
+
+      // fisheye parameters (radial distortion model)
+      k1: { type: 'number', default: -0.05007161 },
+      k2: { type: 'number', default:  0.00713101 },
+      k3: { type: 'number', default: -0.01297023 },
+      k4: { type: 'number', default:  0.00511741 },
+      maxTheta: { type: 'number', default: 100 },
+
+      // pinhole parameters (radial + tangential distortion model)
+      pk1: { type: 'number', default: -0.3506601 },
+      pk2: { type: 'number', default: 0.18558038 },
+      pk3: { type: 'number', default: -0.00065609 },
+      p1: { type: 'number', default: 0.00100313 },
+      p2: { type: 'number', default: -0.05786136 },
+      fovMargin: { type: 'number', default: 1.0 },
+
+      texWidth: { type: 'number', default: 1920 },
+      texHeight: { type: 'number', default: 1920 },
     },
 
     init: function () {
@@ -640,63 +698,67 @@ export default function registerAframeComponents(options) {
 
       const texture = new THREE.VideoTexture(this.videoEl);
       texture.colorSpace = THREE.SRGBColorSpace;
-
-      // 根据 eye 设置纹理的 repeat 和 offset
-      if (this.data.eye === 'left') {
-        texture.repeat.set(0.5, 1);
-        texture.offset.set(0, 0);
-      } else if (this.data.eye === 'right') {
-        texture.repeat.set(0.5, 1);
-        texture.offset.set(0.5, 0);
-      }
+      this.texture = texture;
 
       this.el.setAttribute('material', {
         shader: 'flat',
         src: texture,
-        side: 'double' // 对于球面或曲面，'double' 或 'back' 通常是必须的
+        side: 'back',
       });
 
       this.updateGeometry();
       this.updateLayer();
     },
 
-    update: function (oldData) {
-      // 如果几何体相关参数变化，则更新几何体
-      // (这里简单处理，每次update都更新)
+    update: function () {
       this.updateGeometry();
       this.updateLayer();
     },
 
     updateGeometry: function () {
       const data = this.data;
-      let geometryParams;
+      const eyeOffsetX = this.data.eye === 'right' ? 0.5 : 0.0;
 
-      switch (data.geometryType) {
-        case 'sphere':
-          geometryParams = {
-            primitive: 'sphere',
-            radius: data.radius,
-            segmentsWidth: data.segmentsWidth,
-            segmentsHeight: data.segmentsHeight,
-            phiStart: data.phiStart,
-            phiLength: data.phiLength,
-            thetaStart: data.thetaStart,
-            thetaLength: data.thetaLength,
-          };
-          break;
-        
-        // 这里可以保留其他几何体类型作为备用
-        case 'plane':
-        default:
-          geometryParams = {
-            primitive: 'plane',
-            width: data.width,
-            height: data.height,
-          };
-          break;
+      if (data.lensModel === 'pinhole') {
+        this.el.setAttribute('geometry', {
+          primitive: 'pinhole-screen',
+          radius: data.radius,
+          segmentsWidth: data.segmentsWidth,
+          segmentsHeight: data.segmentsHeight,
+          fx: data.fx,
+          fy: data.fy,
+          cx: data.cx,
+          cy: data.cy,
+          k1: data.pk1,
+          k2: data.pk2,
+          k3: data.pk3,
+          p1: data.p1,
+          p2: data.p2,
+          texWidth: data.texWidth,
+          texHeight: data.texHeight,
+          eyeOffsetX: eyeOffsetX,
+          fovMargin: data.fovMargin,
+        });
+      } else {
+        this.el.setAttribute('geometry', {
+          primitive: 'fisheye-screen',
+          radius: data.radius,
+          segmentsWidth: data.segmentsWidth,
+          segmentsHeight: data.segmentsHeight,
+          fx: data.fx,
+          fy: data.fy,
+          cx: data.cx,
+          cy: data.cy,
+          k1: data.k1,
+          k2: data.k2,
+          k3: data.k3,
+          k4: data.k4,
+          texWidth: data.texWidth,
+          texHeight: data.texHeight,
+          eyeOffsetX: eyeOffsetX,
+          maxTheta: data.maxTheta,
+        });
       }
-      
-      this.el.setAttribute('geometry', geometryParams);
     },
 
     updateLayer: function () {
@@ -713,246 +775,141 @@ export default function registerAframeComponents(options) {
         default:
           mesh.layers.set(0);
       }
-    }
+    },
   });
 
-  // // For ZED Mini
-  // AFRAME.registerComponent('stereo-curvedvideo', {
-  //   schema: {
-  //     eye: { type: 'string', default: 'left' }, // 'left', 'right', or 'both'
-  //     videoId: { type: 'string', default: '' }  // ID of the <video> element
-  //   },
-  //   init: function () {
-  //     const videoEl = document.getElementById(this.data.videoId);
-  //     if (!videoEl || videoEl.tagName !== 'VIDEO') {
-  //       console.warn('Video element not found:', this.data.videoId);
-  //       return;
-  //     }
-
-  //     this.videoEl = videoEl;
-  //     this.videoEl.setAttribute('crossorigin', 'anonymous');
-  //     this.videoEl.setAttribute('playsinline', 'true');
-  //     this.videoEl.play();
-
-  //     // Set hemisphere geometry
-  //     this.el.setAttribute('geometry', {
-  //       primitive: 'sphere',
-  //       radius: 50, 
-  //       segmentsWidth: 64,
-  //       segmentsHeight: 32,
-  //       thetaStart: 45, 
-  //       thetaLength: 75,
-  //       phiStart: 185,
-  //       phiLength: 145
-  //     });
-
-  //     this.el.setAttribute('material', {
-  //       shader: 'flat',
-  //       src: new THREE.VideoTexture(this.videoEl),
-  //       side: 'double' 
-  //     });
-  //   },
-  //   update: function () {
-  //     const mesh = this.el.getObject3D('mesh');
-  //     if (!mesh) return;
-
-  //     switch (this.data.eye) {
-  //       case 'left':
-  //         mesh.layers.set(1);
-  //         break;
-  //       case 'right':
-  //         mesh.layers.set(2);
-  //         break;
-  //       default:
-  //         mesh.layers.set(0); // both
-  //     }
-  //   }
-  // });
-
-  // For FishEye Camera
-  AFRAME.registerComponent('stereo-spherevideo', {
-    schema: {
-      eye: { type: 'string', default: 'left' },
-      videoId: { type: 'string', default: '' },
-      radius: { type: 'number', default: 10 } // 建议 10m 左右，减少调焦压力
-    },
-
-    init: function () {
-      const videoEl = document.getElementById(this.data.videoId);
-      if (!videoEl) {
-        console.warn('Video element not found:', this.data.videoId);
-        return;
-      }
-
-      this.videoEl = videoEl;
-
-      // 针对鱼眼/沉浸式模式调整几何体
-      // thetaLength 180 代表从头顶覆盖到脚下
-      // phiLength 180 代表覆盖前方 180 度视野
-      this.el.setAttribute('geometry', {
-        primitive: 'sphere',
-        radius: this.data.radius,
-        segmentsWidth: 64,
-        segmentsHeight: 64, // 增加垂直分段以平滑鱼眼畸变
-        phiStart: 0,        // 从中心开始
-        phiLength: 180,     // 覆盖半球
-        thetaStart: 0,
-        thetaLength: 180
-      });
-
-      // 创建 Texture
-      const texture = new THREE.VideoTexture(this.videoEl);
-      texture.colorSpace = THREE.SRGBColorSpace; // 确保色彩正确
-
-      this.el.setAttribute('material', {
-        shader: 'flat',
-        src: texture,
-        side: 'front' // 'front' or 'back'
-      });
-
-      // 初始设置图层
-      this.updateLayer();
-    },
-
-    update: function () {
-      this.updateLayer();
-    },
-
-    updateLayer: function () {
-      const mesh = this.el.getObject3D('mesh');
-      if (!mesh) return;
-
-      // A-Frame 默认相机左眼 Layer 1, 右眼 Layer 2
-      if (this.data.eye === 'left') {
-        mesh.layers.set(1);
-      } else if (this.data.eye === 'right') {
-        mesh.layers.set(2);
-      } else {
-        mesh.layers.set(0);
-      }
-    }
-  });
-  
-  /* Menu */
   AFRAME.registerComponent('highlight', {
-  init: function () {
-    var buttonEls = this.buttonEls = this.el.querySelectorAll('.menu-button');
-    var backgroundEl = document.querySelector('#background');
-    this.groups = [
-      ['button1', 'button2'],
-      ['button3', 'button4'],
-      ['button5', 'button6'],
-      ['button7', 'button8'],
-      ['button9', 'button10']
-    ];
-    window.menuActiveBtnIds = window.menuActiveBtnIds || ['button1', 'button3', 'button6', 'button8', 'button10'];
-    const activeBtnIds = window.menuActiveBtnIds;
-    this.activeBtns = [null, null, null, null, null];
+    init: function () {
+      var buttonEls = this.buttonEls = this.el.querySelectorAll('.menu-button');
+      var backgroundEl = document.querySelector('#background');
+      
+      this.groups = [
+        ['button1', 'button2'],
+        ['button3', 'button4'],
+        ['button5', 'button6'],
+        ['button7', 'button8'],
+        ['button9', 'button10']
+      ];
+      
+      this.dataRecordBtnIds = ['sap-data-start', 'sap-data-stop', 'sap-data-complete'];
 
-    this.onClick = this.onClick.bind(this);
-    this.onMouseEnter = this.onMouseEnter.bind(this);
-    this.onMouseLeave = this.onMouseLeave.bind(this);
-    this.reset = this.reset.bind(this);
+      window.menuActiveBtnIds = window.menuActiveBtnIds || ['button1', 'button3', 'button5', 'button8', 'button10'];
+      const activeBtnIds = window.menuActiveBtnIds;
+      
+      this.activeBtns = new Array(this.groups.length).fill(null);
 
-    for (let groupIdx = 0; groupIdx < this.groups.length; ++groupIdx) {
-      const btnId = activeBtnIds[groupIdx];
-      const el = document.getElementById(btnId);
-      if (el) {
-        el.setAttribute('material', 'color', '#00ff00');
-        this.activeBtns[groupIdx] = el;
+      this.onClick = this.onClick.bind(this);
+      this.onMouseEnter = this.onMouseEnter.bind(this);
+      this.onMouseLeave = this.onMouseLeave.bind(this);
+      this.reset = this.reset.bind(this);
+
+      for (let groupIdx = 0; groupIdx < this.groups.length; ++groupIdx) {
+        const btnId = activeBtnIds[groupIdx];
+        const el = document.getElementById(btnId);
+        if (el) {
+          el.setAttribute('material', 'color', '#00ff00');
+          this.activeBtns[groupIdx] = el;
+        }
       }
-    }
-    for (var i = 0; i < buttonEls.length; ++i) {
-      if (!activeBtnIds.includes(buttonEls[i].id)) {
-        buttonEls[i].setAttribute('material', 'color', 'white');
+      
+      for (var i = 0; i < buttonEls.length; ++i) {
+        const btn = buttonEls[i];
+        if (!activeBtnIds.includes(btn.id) && !this.dataRecordBtnIds.includes(btn.id)) {
+          btn.setAttribute('material', 'color', 'white');
+        }
+        btn.addEventListener('mouseenter', this.onMouseEnter);
+        btn.addEventListener('mouseleave', this.onMouseLeave);
+        btn.addEventListener('click', this.onClick);
       }
-      buttonEls[i].addEventListener('mouseenter', this.onMouseEnter);
-      buttonEls[i].addEventListener('mouseleave', this.onMouseLeave);
-      buttonEls[i].addEventListener('click', this.onClick);
-    }
-    backgroundEl.addEventListener('click', this.reset);
-  },
+      if (backgroundEl) backgroundEl.addEventListener('click', this.reset);
+    },
 
-  getGroupIndex: function (btnId) {
-    for (let i = 0; i < this.groups.length; ++i) {
-      if (this.groups[i].includes(btnId)) return i;
-    }
-    return -1;
-  },
+    getGroupIndex: function (btnId) {
+      for (let i = 0; i < this.groups.length; ++i) {
+        if (this.groups[i].includes(btnId)) return i;
+      }
+      return -1;
+    },
 
-  onClick: function (evt) {
-    const btnId = evt.target.id;
-    const groupIdx = this.getGroupIndex(btnId);
-    if (groupIdx === -1) return;
-    for (const id of this.groups[groupIdx]) {
-      const el = document.getElementById(id);
-      if (el) el.setAttribute('material', 'color', 'white');
-    }
-    evt.target.setAttribute('material', 'color', '#00ff00');
-    this.activeBtns[groupIdx] = evt.target;
-    window.menuActiveBtnIds[groupIdx] = btnId;
-    this.el.addState('clicked');
-  },
+    onClick: function (evt) {
+      const btnId = evt.target.id;
+      
+      if (this.dataRecordBtnIds.includes(btnId)) return;
 
-  onMouseEnter: function (evt) {
-    const btnId = evt.target.id;
-    const groupIdx = this.getGroupIndex(btnId);
-    if (groupIdx === -1) return;
-    if (evt.target !== this.activeBtns[groupIdx]) {
-      evt.target.setAttribute('material', 'color', '#046de7');
-    }
-  },
-
-  onMouseLeave: function (evt) {
-    const btnId = evt.target.id;
-    const groupIdx = this.getGroupIndex(btnId);
-    if (groupIdx === -1) return;
-    if (evt.target !== this.activeBtns[groupIdx]) {
-      evt.target.setAttribute('material', 'color', 'white');
-    }
-  },
-
-  reset: function () {
-    // 不重置 window.menuActiveBtnIds，只重置显示
-    for (let i = 0; i < this.groups.length; ++i) {
-      for (const id of this.groups[i]) {
+      const groupIdx = this.getGroupIndex(btnId);
+      if (groupIdx === -1) return;
+      
+      for (const id of this.groups[groupIdx]) {
         const el = document.getElementById(id);
         if (el) el.setAttribute('material', 'color', 'white');
       }
-      this.activeBtns[i] = null;
+      evt.target.setAttribute('material', 'color', '#00ff00');
+      this.activeBtns[groupIdx] = evt.target;
+      window.menuActiveBtnIds[groupIdx] = btnId;
+      this.el.addState('clicked');
+    },
+
+    onMouseEnter: function (evt) {
+      const btnId = evt.target.id;
+
+      if (['sap-data-start', 'sap-data-stop'].includes(btnId)) return;
+      
+      if (this.dataRecordBtnIds.includes(btnId) && !evt.target.classList.contains('raycastable')) return;
+
+      const groupIdx = this.getGroupIndex(btnId);
+      if (groupIdx === -1 || evt.target !== this.activeBtns[groupIdx]) {
+        // evt.target.setAttribute('data-pre-hover-color', evt.target.getAttribute('material').color);
+        evt.target.setAttribute('material', 'color', '#046de7');
+      }
+    },
+
+    onMouseLeave: function (evt) {
+      const btnId = evt.target.id;
+
+      if (['sap-data-start', 'sap-data-stop'].includes(btnId)) return;
+      
+      const groupIdx = this.getGroupIndex(btnId);
+      
+      if (this.dataRecordBtnIds.includes(btnId)) {
+        const preColor = evt.target.getAttribute('data-pre-hover-color') || '#333333';
+        evt.target.setAttribute('material', 'color', preColor);
+        return;
+      }
+
+      if (groupIdx === -1) return;
+      if (evt.target !== this.activeBtns[groupIdx]) {
+        evt.target.setAttribute('material', 'color', 'white');
+      }
+    },
+
+    reset: function () {
+      for (let i = 0; i < this.groups.length; ++i) {
+        for (const id of this.groups[i]) {
+          const el = document.getElementById(id);
+          if (el) el.setAttribute('material', 'color', 'white');
+        }
+        this.activeBtns[i] = null;
+      }
+      this.el.removeState('clicked');
     }
-    this.el.removeState('clicked');
-  }
-});
+  });
 
   AFRAME.registerComponent('button-action', {
     init: function () {
-      // Select all menu buttons
       const buttonEls = document.querySelectorAll('.menu-button');
       for (let i = 0; i < buttonEls.length; ++i) {
         buttonEls[i].addEventListener('click', (evt) => {
           const btnId = evt.currentTarget.id;
-          if (btnId === "button1") {
-            setControlMode("inSpace");
-          } else if (btnId === "button2") {
-            setControlMode("inBody");
-          } else if (btnId === "button3") {
-            setLeftArmMode("free");
-          } else if (btnId === "button4") {
-            setLeftArmMode("assist");
-          } else if (btnId === "button5") {
-            setIndicator("true");
-          } else if (btnId === "button6") {
-            setIndicator("false");
-          } else if (btnId === "button7") {
-            setShareControl(true);
-          } else if (btnId === "button8") {
-            setShareControl(false);
-          } else if (btnId === "button9") {
-            setWholeBodyControl(true);
-          } else if (btnId === "button10") {
-            setWholeBodyControl(false);
-          }
+          if (btnId === "button1") { setHmdControl(false); } 
+          else if (btnId === "button2") { setHmdControl(true); } 
+          else if (btnId === "button3") { setShowVideo(false); } 
+          else if (btnId === "button4") { setShowVideo(true); } 
+          else if (btnId === "button5") { setShowModel(true); } 
+          else if (btnId === "button6") { setShowModel(false); } 
+          else if (btnId === "button7") { setShareControl(true); } 
+          else if (btnId === "button8") { setShareControl(false); } 
+          else if (btnId === "button9") { setWholeBodyControl(true); } 
+          else if (btnId === "button10") { setWholeBodyControl(false); } 
         });
       }
     }
@@ -960,8 +917,7 @@ export default function registerAframeComponents(options) {
 
   AFRAME.registerComponent('fps-counter', {
     schema: {
-      for90fps: { default: true },
-      updateInterval: { default: 10 } // 每 N 帧更新一次
+      updateInterval: { default: 10 } 
     },
 
     init: function () {
@@ -976,7 +932,7 @@ export default function registerAframeComponents(options) {
       this.frameCount = 0;
       this.frameDuration = 0;
       this.currentFPS = 0;
-      this.fpsHistory = []; // ✅ 记录历史帧率，用于计算平均值
+      this.fpsHistory = []; 
       this.maxHistoryLength = 30;
     },
 
@@ -984,284 +940,337 @@ export default function registerAframeComponents(options) {
       this.frameCount++;
       this.frameDuration += dt;
 
-      // ✅ 每隔 N 帧计算一次 FPS
       if (this.frameCount >= this.data.updateInterval) {
         const fps = 1000 / (this.frameDuration / this.frameCount);
         this.currentFPS = fps;
 
-        // ✅ 平滑 FPS 显示（移动平均）
         this.fpsHistory.push(fps);
         if (this.fpsHistory.length > this.maxHistoryLength) {
           this.fpsHistory.shift();
         }
         const avgFPS = this.fpsHistory.reduce((a, b) => a + b, 0) / this.fpsHistory.length;
 
-        // ✅ 根据 FPS 动态调整颜色
         let color = 'green';
-        if (this.data.for90fps) {
-          if (avgFPS < 85) { color = 'yellow'; }
-          if (avgFPS < 80) { color = 'orange'; }
-          if (avgFPS < 75) { color = 'red'; }
-        } else {
-          if (avgFPS < 55) { color = 'yellow'; }
-          if (avgFPS < 45) { color = 'orange'; }
-          if (avgFPS < 30) { color = 'red'; }
-        }
+        if (avgFPS >= 59.9) { color = 'green'; }
+        else if (avgFPS >= 50) { color = 'orange'; }
+        else if (avgFPS < 50) { color = 'red'; }
 
-        // ✅ 一次性更新文本和颜色（减少 DOM 操作）
         this.el.setAttribute('text', {
           value: `${avgFPS.toFixed(0)} fps`,
           color: color
         });
 
-        // 重置计数器
         this.frameCount = 0;
         this.frameDuration = 0;
       }
     },
 
-    // ✅ 新增：外部可获取当前 FPS
     getFPS: function () {
       return this.currentFPS;
     }
   });
 
-  // ----- Hand Tracking -----
-  // WebXR Hand 25 Joints checke https://developers.meta.com/horizon/documentation/web/webxr-hands/
-  // 0     ["wrist"],
-  // 1-4   ["thumb-metacarpal", "thumb-phalanx-proximal", "thumb-phalanx-distal", "thumb-tip"],
-  // 5-9   ["index-finger-metacarpal", "index-finger-phalanx-proximal", "index-finger-phalanx-intermediate", "index-finger-phalanx-distal", "index-finger-tip"],
-  // 10-14 ["middle-finger-metacarpal", "middle-finger-phalanx-proximal", "middle-finger-phalanx-intermediate", "middle-finger-phalanx-distal", "middle-finger-tip"],
-  // 15-19 ["ring-finger-metacarpal", "ring-finger-phalanx-proximal", "ring-finger-phalanx-intermediate", "ring-finger-phalanx-distal", "ring-finger-tip"],
-  // 20-24 ["pinky-finger-metacarpal", "pinky-finger-phalanx-proximal", "pinky-finger-phalanx-intermediate", "pinky-finger-phalanx-distal", "pinky-finger-tip"]
   AFRAME.registerComponent('vr-hand-as-controller', {
-  schema: {
-    hand: { type: 'string', default: 'right' },
-  },
+    schema: {
+      hand: { type: 'string', default: 'right' },
+      showMenu: { type: 'boolean', default: false },
+    },
 
-  init: function () {
-    this.jointObjects = {
-      wrist: new THREE.Object3D(),
-      thumbTip: new THREE.Object3D(),
-      indexTip: new THREE.Object3D(),
-      indexInter: new THREE.Object3D(),
-      indexMeta: new THREE.Object3D(),
-      middleTip: new THREE.Object3D(),
-      middleMeta: new THREE.Object3D(),
-      pinkyTip: new THREE.Object3D(),
-    };
+    remove: function () {
+      if (this.laserLine) {
+        this.el.sceneEl.object3D.remove(this.laserLine);
+      }
+    },
 
-    // ✅ 添加菜单手势状态管理
-    this.menuGestureState = {
-      isGestureActive: false,       // 当前手势是否激活
-      gestureStartTime: 0,          // 手势开始时间
-      lastToggleTime: 0,            // 上次切换菜单的时间
-      HOLD_DURATION: 500,           // 需要保持手势的时间（毫秒）
-      COOLDOWN_DURATION: 1000,      // 冷却时间，防止误触发
-    };
-  },
+    getJointPose: function(jointName) {
+      return this.jointObjects[jointName];
+    },
 
-  getJointPose: function(jointName) {
-    return this.jointObjects[jointName];
-  },
+    init: function () {
+      this.jointObjects = {
+        wrist: new THREE.Object3D(),
+        thumbTip: new THREE.Object3D(),
+        indexTip: new THREE.Object3D(),
+        indexInter: new THREE.Object3D(),
+        indexMeta: new THREE.Object3D(),
+        middleTip: new THREE.Object3D(),
+        middleMeta: new THREE.Object3D(),
+        pinkyTip: new THREE.Object3D(),
+      };
+
+      this.menuGestureState = {
+        isGestureActive: false,      
+        gestureStartTime: 0,          
+        lastToggleTime: 0,            
+        HOLD_DURATION: 600,           
+        COOLDOWN_DURATION: 1000,      
+      };
+
+      const laserMaterial = new THREE.LineBasicMaterial({ color: '#4CC3D9' });
+      const laserGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, -1)
+      ]);
+      this.laserLine = new THREE.Line(laserGeometry, laserMaterial);
+      this.laserLine.raycast = () => {};
+      this.laserLine.visible = false;
+      this.el.sceneEl.object3D.add(this.laserLine);
+
+      this.raycaster = new THREE.Raycaster();
+      this.wasPinching = false;
+      this.currentIntersection = null;
+
+      this.forwardVector = new THREE.Vector3(0, 0, -1);
+
+      this.smoothedWristQuaternion = new THREE.Quaternion();
+      this.smoothingInitialized = false;
+
+      this.smoothingFactor = 0.25;
+      this.lockedDirectionOnPinch = null;
+
+      const offsetAngleDeg = 10;
+      const offsetAngleRad = THREE.MathUtils.degToRad(offsetAngleDeg);
+      const sign = -1;
+      
+      this.laserOffsetQuaternion = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(1, 0, 0),
+        offsetAngleRad * sign
+        );
+    },
   
-  tick: function () {
-    const sceneEl = this.el.sceneEl;
-    const frame = sceneEl.frame;
-    const renderer = sceneEl.renderer;
+    tick: function () {
+      const sceneEl = this.el.sceneEl;
+      const frame = sceneEl.frame;
+      const renderer = sceneEl.renderer;
 
-    if (!frame || !renderer.xr.enabled) return;
+      if (!frame || !renderer.xr.enabled) return;
 
-    const session = renderer.xr.getSession();
-    if (!session) return;
+      const session = renderer.xr.getSession();
+      if (!session) return;
 
-    const inputSource = Array.from(session.inputSources).find(
-      s => s.hand && s.handedness === this.data.hand
-    );
+      const inputSource = Array.from(session.inputSources).find(
+        s => s.hand && s.handedness === this.data.hand
+      );
 
-    if (inputSource) {
-      const refSpace = renderer.xr.getReferenceSpace();
-      const hand = inputSource.hand;
+      if (inputSource) {
+        const refSpace = renderer.xr.getReferenceSpace();
+        const hand = inputSource.hand;
 
-      // Get poses for hand joints
-      const wristPose = frame.getJointPose(hand.get('wrist'), refSpace);
-      const thumbTipPose = frame.getJointPose(hand.get('thumb-tip'), refSpace);
-      const indexTipPose = frame.getJointPose(hand.get('index-finger-tip'), refSpace);
-      const indexMetaPose = frame.getJointPose(hand.get('index-finger-metacarpal'), refSpace);
-      const indexInterPose = frame.getJointPose(hand.get('index-finger-phalanx-intermediate'), refSpace);
-      const middleTipPose = frame.getJointPose(hand.get('middle-finger-tip'), refSpace);
-      const middleMetaPose = frame.getJointPose(hand.get('middle-finger-metacarpal'), refSpace);
-      const pinkyTipPose = frame.getJointPose(hand.get('pinky-finger-tip'), refSpace);
+        // Get poses for hand joints
+        const wristPose = frame.getJointPose(hand.get('wrist'), refSpace);
+        const thumbTipPose = frame.getJointPose(hand.get('thumb-tip'), refSpace);
+        const indexTipPose = frame.getJointPose(hand.get('index-finger-tip'), refSpace);
+        const indexMetaPose = frame.getJointPose(hand.get('index-finger-metacarpal'), refSpace);
+        const indexInterPose = frame.getJointPose(hand.get('index-finger-phalanx-intermediate'), refSpace);
+        const middleTipPose = frame.getJointPose(hand.get('middle-finger-tip'), refSpace);
+        const middleMetaPose = frame.getJointPose(hand.get('middle-finger-metacarpal'), refSpace);
+        const pinkyTipPose = frame.getJointPose(hand.get('pinky-finger-tip'), refSpace);
 
-      if (!wristPose || !thumbTipPose || !indexTipPose || !indexMetaPose || !middleTipPose || !middleMetaPose || !pinkyTipPose) {
-        return; 
-      }
+        if (!wristPose || !thumbTipPose || !indexTipPose || !indexMetaPose || !middleTipPose || !middleMetaPose || !pinkyTipPose) {
+          return; 
+        }
 
-      // Update joint positions and orientations
-      const { position: pWrist, orientation: qWrist } = wristPose.transform;
-      this.jointObjects.wrist.position.set(pWrist.x, pWrist.y, pWrist.z);
-      this.jointObjects.wrist.quaternion.set(qWrist.x, qWrist.y, qWrist.z, qWrist.w);
+        // Update joint positions and orientations
+        const { position: pWrist, orientation: qWrist } = wristPose.transform;
+        this.jointObjects.wrist.position.set(pWrist.x, pWrist.y, pWrist.z);
+        this.jointObjects.wrist.quaternion.set(qWrist.x, qWrist.y, qWrist.z, qWrist.w);
 
-      const { position: pThumb, orientation: qThumb } = thumbTipPose.transform;
-      this.jointObjects.thumbTip.position.set(pThumb.x, pThumb.y, pThumb.z);
-      this.jointObjects.thumbTip.quaternion.set(qThumb.x, qThumb.y, qThumb.z, qThumb.w);
+        const { position: pThumb, orientation: qThumb } = thumbTipPose.transform;
+        this.jointObjects.thumbTip.position.set(pThumb.x, pThumb.y, pThumb.z);
+        this.jointObjects.thumbTip.quaternion.set(qThumb.x, qThumb.y, qThumb.z, qThumb.w);
 
-      const { position: pIndexTip, orientation: qIndexTip } = indexTipPose.transform;
-      this.jointObjects.indexTip.position.set(pIndexTip.x, pIndexTip.y, pIndexTip.z);
-      this.jointObjects.indexTip.quaternion.set(qIndexTip.x, qIndexTip.y, qIndexTip.z, qIndexTip.w);
+        const { position: pIndexTip, orientation: qIndexTip } = indexTipPose.transform;
+        this.jointObjects.indexTip.position.set(pIndexTip.x, pIndexTip.y, pIndexTip.z);
+        this.jointObjects.indexTip.quaternion.set(qIndexTip.x, qIndexTip.y, qIndexTip.z, qIndexTip.w);
 
-      const { position: pIndexMeta, orientation: qIndexMeta } = indexMetaPose.transform;
-      this.jointObjects.indexMeta.position.set(pIndexMeta.x, pIndexMeta.y, pIndexMeta.z);
-      this.jointObjects.indexMeta.quaternion.set(qIndexMeta.x, qIndexMeta.y, qIndexMeta.z, qIndexMeta.w);
+        const { position: pIndexMeta, orientation: qIndexMeta } = indexMetaPose.transform;
+        this.jointObjects.indexMeta.position.set(pIndexMeta.x, pIndexMeta.y, pIndexMeta.z);
+        this.jointObjects.indexMeta.quaternion.set(qIndexMeta.x, qIndexMeta.y, qIndexMeta.z, qIndexMeta.w);
 
-      const { position: pIndexInter, orientation: qIndexInter } = indexInterPose.transform;
-      this.jointObjects.indexInter.position.set(pIndexInter.x, pIndexInter.y, pIndexInter.z);
-      this.jointObjects.indexInter.quaternion.set(qIndexInter.x, qIndexInter.y, qIndexInter.z, qIndexInter.w);
+        const { position: pIndexInter, orientation: qIndexInter } = indexInterPose.transform;
+        this.jointObjects.indexInter.position.set(pIndexInter.x, pIndexInter.y, pIndexInter.z);
+        this.jointObjects.indexInter.quaternion.set(qIndexInter.x, qIndexInter.y, qIndexInter.z, qIndexInter.w);
 
-      const { position: pMiddleTip, orientation: qMiddleTip } = middleTipPose.transform;
-      this.jointObjects.middleTip.position.set(pMiddleTip.x, pMiddleTip.y, pMiddleTip.z);
-      this.jointObjects.middleTip.quaternion.set(qMiddleTip.x, qMiddleTip.y, qMiddleTip.z, qMiddleTip.w);
+        const { position: pMiddleTip, orientation: qMiddleTip } = middleTipPose.transform;
+        this.jointObjects.middleTip.position.set(pMiddleTip.x, pMiddleTip.y, pMiddleTip.z);
+        this.jointObjects.middleTip.quaternion.set(qMiddleTip.x, qMiddleTip.y, qMiddleTip.z, qMiddleTip.w);
 
-      const { position: pMiddleMeta, orientation: qMiddleMeta } = middleMetaPose.transform;
-      this.jointObjects.middleMeta.position.set(pMiddleMeta.x, pMiddleMeta.y, pMiddleMeta.z);
-      this.jointObjects.middleMeta.quaternion.set(qMiddleMeta.x, qMiddleMeta.y, qMiddleMeta.z, qMiddleMeta.w);
+        const { position: pMiddleMeta, orientation: qMiddleMeta } = middleMetaPose.transform;
+        this.jointObjects.middleMeta.position.set(pMiddleMeta.x, pMiddleMeta.y, pMiddleMeta.z);
+        this.jointObjects.middleMeta.quaternion.set(qMiddleMeta.x, qMiddleMeta.y, qMiddleMeta.z, qMiddleMeta.w);
 
-      const { position: pPinkyTip, orientation: qPinkyTip } = pinkyTipPose.transform;
-      this.jointObjects.pinkyTip.position.set(pPinkyTip.x, pPinkyTip.y, pPinkyTip.z);
-      this.jointObjects.pinkyTip.quaternion.set(qPinkyTip.x, qPinkyTip.y, qPinkyTip.z, qPinkyTip.w);
+        const { position: pPinkyTip, orientation: qPinkyTip } = pinkyTipPose.transform;
+        this.jointObjects.pinkyTip.position.set(pPinkyTip.x, pPinkyTip.y, pPinkyTip.z);
+        this.jointObjects.pinkyTip.quaternion.set(qPinkyTip.x, qPinkyTip.y, qPinkyTip.z, qPinkyTip.w);
 
-      // Retargeting
-      const dThumbIndex = this.jointObjects.thumbTip.position.distanceTo(this.jointObjects.indexTip.position);
-      const dIndexTipMeta = this.jointObjects.indexTip.position.distanceTo(this.jointObjects.indexMeta.position);
+        // Retargeting
+        const dThumbIndex = this.jointObjects.thumbTip.position.distanceTo(this.jointObjects.indexTip.position);
+        const dIndexTipMeta = this.jointObjects.indexTip.position.distanceTo(this.jointObjects.indexMeta.position);
 
-      const dThumbMiddle = this.jointObjects.thumbTip.position.distanceTo(this.jointObjects.middleTip.position);
-      const dMiddleTipMeta = this.jointObjects.middleTip.position.distanceTo(this.jointObjects.middleMeta.position);
+        const dThumbMiddle = this.jointObjects.thumbTip.position.distanceTo(this.jointObjects.middleTip.position);
+        const dMiddleTipMeta = this.jointObjects.middleTip.position.distanceTo(this.jointObjects.middleMeta.position);
 
-      const dThumbIndexInter = this.jointObjects.thumbTip.position.distanceTo(this.jointObjects.indexInter.position);
-      
-      let thumbIndexTipRatio = 0;
-      let thumbMiddleRatio = 0;
-      let indexMetaRatio = 0;
-      let middleMetaRatio = 0;
-      let thumbIndexInterRatio = 0;
+        const dThumbIndexInter = this.jointObjects.thumbTip.position.distanceTo(this.jointObjects.indexInter.position);
+        
+        let thumbIndexTipRatio = 0;
+        let thumbMiddleRatio = 0;
+        let indexMetaRatio = 0;
+        let middleMetaRatio = 0;
+        let thumbIndexInterRatio = 0;
 
-      if (dThumbIndex < 0.02) {
-        thumbIndexTipRatio = 1;
-      } else if (dThumbIndex > 0.08) {
-        thumbIndexTipRatio = 0;
-      } else {
-        thumbIndexTipRatio = 1 - (dThumbIndex - 0.02) / (0.08 - 0.02);
-      }
-
-      if (dIndexTipMeta < 0.07) {
-        indexMetaRatio = 1;
-      } else if (dIndexTipMeta > 0.14) {
-        indexMetaRatio = 0;
-      } else {
-        indexMetaRatio = 1 - (dIndexTipMeta - 0.07) / (0.14 - 0.07);
-      }
-
-      if (dThumbMiddle < 0.025) {
-        thumbMiddleRatio = 1;
-      } else if (dThumbMiddle > 0.012) {
-        thumbMiddleRatio = 0;
-      } else {
-        thumbMiddleRatio = 1 - (dThumbMiddle - 0.025) / (0.012 - 0.025);
-      }
-      
-      if (dMiddleTipMeta < 0.07) {
-        middleMetaRatio = 1;
-      } else if (dMiddleTipMeta > 0.14) {
-        middleMetaRatio = 0;
-      } else {
-        middleMetaRatio = 1 - (dMiddleTipMeta - 0.07) / (0.14 - 0.07);
-      }
-
-      if (dThumbIndexInter < 0.025) {
-        thumbIndexInterRatio = 1;
-      } else if (dThumbIndexInter > 0.10) {
-        thumbIndexInterRatio = 0;
-      } else {
-        thumbIndexInterRatio = 1 - (dThumbIndexInter - 0.02) / (0.10 - 0.025);
-      }
-
-      // Hand Trigger
-      const angleIndex = this.jointObjects.indexTip.quaternion.angleTo(this.jointObjects.indexMeta.quaternion);
-      const angleMiddle = this.jointObjects.middleTip.quaternion.angleTo(this.jointObjects.middleMeta.quaternion);
-
-      const isIndexOpen = angleIndex < 0.5;
-      const isMiddleOpen = angleMiddle < 0.5;
-
-      const isTriggered = !(isIndexOpen && isMiddleOpen);
-
-      // ✅ 优化后的菜单手势检测（拇指-小指触碰）
-      const dThumbPinky = this.jointObjects.thumbTip.position.distanceTo(this.jointObjects.pinkyTip.position);
-      const currentTime = performance.now();
-      const state = this.menuGestureState;
-
-      // 检测手势是否满足触发条件
-      const isGestureDetected = dThumbPinky < 0.03; // 3.0cm 触发距离
-
-      if (isGestureDetected) {
-        if (!state.isGestureActive) {
-          // 手势刚开始
-          state.isGestureActive = true;
-          state.gestureStartTime = currentTime;
-          console.log('👆 拇指-小指手势开始');
+        if (dThumbIndex < 0.018) {
+          thumbIndexTipRatio = 1;
+        } else if (dThumbIndex > 0.09) {
+          thumbIndexTipRatio = 0;
         } else {
-          // 手势持续中，检查是否达到触发时长
-          const holdDuration = currentTime - state.gestureStartTime;
-          const timeSinceLastToggle = currentTime - state.lastToggleTime;
-          
-          if (holdDuration >= state.HOLD_DURATION && 
-              timeSinceLastToggle >= state.COOLDOWN_DURATION &&
-              !state.hasTriggered) { // 防止长按期间重复触发
-            
-            // ✅ 自动切换菜单状态
-            setShowMenu((prev) => {
-              console.log(`🎯 菜单自动切换: ${prev ? 'OFF' : 'ON'} (按住 ${holdDuration.toFixed(0)}ms)`);
-              return !prev;
-            });
-            
-            state.lastToggleTime = currentTime;
-            state.hasTriggered = true; // 标记已触发
-          }
+          thumbIndexTipRatio = 1 - (dThumbIndex - 0.018) / (0.09 - 0.018);
         }
-      } else {
-        // 手势结束
-        if (state.isGestureActive) {
-          const holdDuration = currentTime - state.gestureStartTime;
-          
-          if (!state.hasTriggered) {
-            console.log(`❌ 手势时间不足: ${holdDuration.toFixed(0)}ms (需要 ${state.HOLD_DURATION}ms)`);
-          }
-          
-          state.isGestureActive = false;
-          state.hasTriggered = false; // 重置触发标记
-        }
-      }
 
-      // Update
-      if (this.data.hand === 'right') {
-        set_trigger_on(isTriggered);
-        set_controller_object(this.jointObjects.wrist);
-        setThumbIndexRight(Math.max(0, Math.min(1, thumbIndexTipRatio)));
-        setThumbMiddleRight(Math.max(0, Math.min(1, thumbMiddleRatio)));
-        setIndexMetaRight(Math.max(0, Math.min(1, indexMetaRatio)));
-        setMiddleMetaRight(Math.max(0, Math.min(1, middleMetaRatio)));
-        setThumbIndexInterRight(Math.max(0, Math.min(1, thumbIndexInterRatio)));
-      } else {
-        set_trigger_on_left(isTriggered);
-        set_controller_object_left(this.jointObjects.wrist);
-        setThumbIndexLeft(Math.max(0, Math.min(1, thumbIndexTipRatio)));
-        setThumbMiddleLeft(Math.max(0, Math.min(1, thumbMiddleRatio)));
-        setIndexMetaLeft(Math.max(0, Math.min(1, indexMetaRatio)));
-        setMiddleMetaLeft(Math.max(0, Math.min(1, middleMetaRatio)));
-        setThumbIndexInterLeft(Math.max(0, Math.min(1, thumbIndexInterRatio)));
+        if (dIndexTipMeta < 0.07) {
+          indexMetaRatio = 1;
+        } else if (dIndexTipMeta > 0.14) {
+          indexMetaRatio = 0;
+        } else {
+          indexMetaRatio = 1 - (dIndexTipMeta - 0.07) / (0.14 - 0.07);
+        }
+
+        if (dThumbMiddle < 0.02) {
+          thumbMiddleRatio = 1;
+        } else if (dThumbMiddle > 0.095) {
+          thumbMiddleRatio = 0;
+        } else {
+          thumbMiddleRatio = 1 - (dThumbMiddle - 0.02) / (0.095 - 0.02);
+        }
+        
+        if (dMiddleTipMeta < 0.07) {
+          middleMetaRatio = 1;
+        } else if (dMiddleTipMeta > 0.15) {
+          middleMetaRatio = 0;
+        } else {
+          middleMetaRatio = 1 - (dMiddleTipMeta - 0.07) / (0.15 - 0.07);
+        }
+
+        if (dThumbIndexInter < 0.010) {
+          thumbIndexInterRatio = 1;
+        } else if (dThumbIndexInter > 0.10) {
+          thumbIndexInterRatio = 0;
+        } else {
+          thumbIndexInterRatio = 1 - (dThumbIndexInter - 0.010) / (0.10 - 0.010);
+        }
+
+        // Hand Trigger
+        const angleIndex = this.jointObjects.indexTip.quaternion.angleTo(this.jointObjects.indexMeta.quaternion);
+        const angleMiddle = this.jointObjects.middleTip.quaternion.angleTo(this.jointObjects.middleMeta.quaternion);
+
+        const isIndexOpen = angleIndex < 0.5;
+        const isMiddleOpen = angleMiddle < 0.5;
+
+        const isTriggered = !(isIndexOpen && isMiddleOpen);
+
+        const dThumbPinky = this.jointObjects.thumbTip.position.distanceTo(this.jointObjects.pinkyTip.position);
+        const currentTime = performance.now();
+        const state = this.menuGestureState;
+
+        const isGestureDetected = dThumbPinky < 0.028; //m
+
+        if (isGestureDetected) {
+          if (!state.isGestureActive) {
+            state.isGestureActive = true;
+            state.gestureStartTime = currentTime;
+          } else {
+            const holdDuration = currentTime - state.gestureStartTime;
+            const timeSinceLastToggle = currentTime - state.lastToggleTime;
+            
+            if (holdDuration >= state.HOLD_DURATION && 
+                timeSinceLastToggle >= state.COOLDOWN_DURATION &&
+                !state.hasTriggered) { 
+              
+              setShowMenu((prev) => {
+                return !prev;
+              });
+              
+              state.lastToggleTime = currentTime;
+              state.hasTriggered = true; 
+            }
+          }
+        } else {
+          if (state.isGestureActive) {            
+            state.isGestureActive = false;
+            state.hasTriggered = false;
+          }
+        }
+
+        // Update
+        if (this.data.hand === 'right') {
+          set_trigger_on(isTriggered);
+          set_controller_object(this.jointObjects.wrist);
+          setThumbIndexRight(Math.max(0, Math.min(1, thumbIndexTipRatio)));
+          setThumbMiddleRight(Math.max(0, Math.min(1, thumbMiddleRatio)));
+          setIndexMetaRight(Math.max(0, Math.min(1, indexMetaRatio)));
+          setMiddleMetaRight(Math.max(0, Math.min(1, middleMetaRatio)));
+          setThumbIndexInterRight(Math.max(0, Math.min(1, thumbIndexInterRatio)));
+        } else {
+          set_trigger_on_left(isTriggered);
+          set_controller_object_left(this.jointObjects.wrist);
+          setThumbIndexLeft(Math.max(0, Math.min(1, thumbIndexTipRatio)));
+          setThumbMiddleLeft(Math.max(0, Math.min(1, thumbMiddleRatio)));
+          setIndexMetaLeft(Math.max(0, Math.min(1, indexMetaRatio)));
+          setMiddleMetaLeft(Math.max(0, Math.min(1, middleMetaRatio)));
+          setThumbIndexInterLeft(Math.max(0, Math.min(1, thumbIndexInterRatio)));
+        }
+
+        if (!this.data.showMenu) {
+          this.laserLine.visible = false;
+          this.currentIntersection = null;
+          this.wasPinching = false; 
+        } else {
+          if (!this.smoothingInitialized) {
+            this.smoothedWristQuaternion.copy(this.jointObjects.wrist.quaternion);
+            this.smoothingInitialized = true;
+          } else {
+            this.smoothedWristQuaternion.slerp(this.jointObjects.wrist.quaternion, this.smoothingFactor);
+          }
+
+          const finalQuaternion = this.smoothedWristQuaternion.clone().multiply(this.laserOffsetQuaternion);
+
+          const direction = this.forwardVector.clone()
+            .applyQuaternion(finalQuaternion)
+            .normalize();
+
+          const parentOffset = new THREE.Vector3();
+          if (this.el.parentEl && this.el.parentEl.object3D) {
+            this.el.parentEl.object3D.getWorldPosition(parentOffset);
+          }
+
+          const origin = this.jointObjects.wrist.position.clone().add(parentOffset);
+
+          this.laserLine.visible = true;
+          this.raycaster.set(origin, direction);
+          this.raycaster.far = 10;
+
+          const targets = Array.from(document.querySelectorAll('.raycastable'))
+            .map(el => el.object3D)
+            .filter(Boolean);
+
+          const intersects = this.raycaster.intersectObjects(targets, true);
+          this.currentIntersection = intersects.length > 0 ? intersects[0] : null;
+
+          const endPoint = this.currentIntersection
+            ? this.currentIntersection.point
+            : origin.clone().add(direction.clone().multiplyScalar(2));
+
+          this.laserLine.geometry.setFromPoints([origin, endPoint]);
+          this.laserLine.geometry.attributes.position.needsUpdate = true;
+
+          const isPinching = dThumbIndex < 0.018;
+          if (isPinching && !this.wasPinching && this.currentIntersection) {
+            this.currentIntersection.object.el.dispatchEvent(new Event('click', { bubbles: true, composed: true }));
+          }
+          this.wasPinching = isPinching;
+        }
       }
-    }
-  },
-});
+    },
+  });
 
   AFRAME.registerComponent('finger-distance-visualizer', {
     schema: {
@@ -1272,13 +1281,11 @@ export default function registerAframeComponents(options) {
     },
 
     init: function () {
-      // 1. 创建线条（用于显示距离路径）
       this.geometry = new THREE.BufferGeometry();
       this.material = new THREE.LineBasicMaterial({ color: this.data.color, depthTest: false });
       this.line = new THREE.Line(this.geometry, this.material);
       this.el.sceneEl.object3D.add(this.line);
 
-      // 2. 创建文本（用于显示具体数值）
       this.textEl = document.createElement('a-entity');
       this.textEl.setAttribute('text', {
         value: '',
@@ -1291,12 +1298,10 @@ export default function registerAframeComponents(options) {
       this.tempVecA = new THREE.Vector3();
       this.tempVecB = new THREE.Vector3();
 
-      // 3. 查找对应的 vr-hand-as-controller 组件
       this.handController = null;
     },
 
     tick: function () {
-      // 懒加载：首次查找 hand controller
       if (!this.handController) {
         const handEntities = document.querySelectorAll('[vr-hand-as-controller]');
         for (let i = 0; i < handEntities.length; i++) {
@@ -1307,42 +1312,36 @@ export default function registerAframeComponents(options) {
           }
         }
         
-        // 如果还没找到，跳过本帧
         if (!this.handController) return;
       }
 
-      // 从 vr-hand-as-controller 获取关节对象
       const jointA = this.handController.jointObjects[this.data.jointA];
       const jointB = this.handController.jointObjects[this.data.jointB];
 
       if (jointA && jointB && jointA.position && jointB.position) {
-        // 检查位置是否有效（不为零向量，表示已更新）
         if (jointA.position.lengthSq() > 0 && jointB.position.lengthSq() > 0) {
           this.tempVecA.copy(jointA.position);
           this.tempVecB.copy(jointB.position);
 
-          // 更新线条顶点
           this.geometry.setFromPoints([this.tempVecA, this.tempVecB]);
           this.line.visible = true;
 
-          // 更新文本位置和内容 (放在线条中间)
           const dist = this.tempVecA.distanceTo(this.tempVecB);
           this.textEl.setAttribute('visible', true);
           this.textEl.object3D.position.lerpVectors(this.tempVecA, this.tempVecB, 0.5);
-          this.textEl.object3D.position.y += 0.02; // 稍微向上偏移防止重叠
+          this.textEl.object3D.position.y += 0.02; 
           this.textEl.setAttribute('text', 'value', (dist * 100).toFixed(1) + ' cm');
           
           return;
         }
       }
       
-      // 如果没追踪到，隐藏
       this.line.visible = false;
       this.textEl.setAttribute('visible', false);
     }
+    
   });
 
-  // 新增：显示关节角度的可视化组件
   AFRAME.registerComponent('finger-angle-visualizer', {
     schema: {
       hand: { type: 'string', default: 'right' },
@@ -1352,7 +1351,6 @@ export default function registerAframeComponents(options) {
     },
 
     init: function () {
-      // 创建文本显示角度
       this.textEl = document.createElement('a-entity');
       this.textEl.setAttribute('text', {
         value: '',
@@ -1366,7 +1364,6 @@ export default function registerAframeComponents(options) {
     },
 
     tick: function () {
-      // 懒加载 hand controller
       if (!this.handController) {
         const handEntities = document.querySelectorAll('[vr-hand-as-controller]');
         for (let i = 0; i < handEntities.length; i++) {
@@ -1384,11 +1381,9 @@ export default function registerAframeComponents(options) {
 
       if (jointA && jointB && jointA.quaternion && jointB.quaternion) {
         if (jointA.position.lengthSq() > 0 && jointB.position.lengthSq() > 0) {
-          // 计算四元数角度差
           const angle = jointA.quaternion.angleTo(jointB.quaternion);
           const angleDegrees = THREE.MathUtils.radToDeg(angle);
 
-          // 显示在两个关节中间
           this.textEl.object3D.position.lerpVectors(jointA.position, jointB.position, 0.5);
           this.textEl.object3D.position.y += 0.03;
           this.textEl.setAttribute('text', 'value', `${angleDegrees.toFixed(1)}°`);
@@ -1400,4 +1395,81 @@ export default function registerAframeComponents(options) {
       this.textEl.setAttribute('visible', false);
     }
   });
+
+  /*------------------------------ UI ------------------------------*/
+  AFRAME.registerGeometry('rounded-rect', {
+    schema: {
+      width: {type: 'number', default: 1},
+      height: {type: 'number', default: 1},
+      radius: {type: 'number', default: 0.05}
+    },
+    init: function (data) {
+      const { width: w, height: h, radius: r } = data;
+      const shape = new THREE.Shape();
+      const x = -w / 2;
+      const y = -h / 2;
+
+      shape.moveTo(x, y + r);
+      shape.lineTo(x, y + h - r);
+      shape.quadraticCurveTo(x, y + h, x + r, y + h);
+      shape.lineTo(x + w - r, y + h);
+      shape.quadraticCurveTo(x + w, y + h, x + w, y + h - r);
+      shape.lineTo(x + w, y + r);
+      shape.quadraticCurveTo(x + w, y, x + w - r, y);
+      shape.lineTo(x + r, y);
+      shape.quadraticCurveTo(x, y, x, y + r);
+
+      this.geometry = new THREE.ShapeGeometry(shape);
+    }
+  });
+
+  AFRAME.registerComponent('rounded-rect-border', {
+    schema: {
+      width: {type: 'number', default: 1},
+      height: {type: 'number', default: 1},
+      radius: {type: 'number', default: 0.05},
+      color: {type: 'color', default: '#ffffff'},
+      opacity: {type: 'number', default: 1}
+    },
+    init: function () {
+      this.buildBorder();
+    },
+    update: function () {
+      this.buildBorder();
+    },
+    buildBorder: function () {
+      const data = this.data;
+      const w = data.width, h = data.height, r = Math.min(data.radius, w / 2, h / 2);
+      const x = -w / 2, y = -h / 2;
+
+      const shape = new THREE.Shape();
+      shape.moveTo(x, y + r);
+      shape.lineTo(x, y + h - r);
+      shape.quadraticCurveTo(x, y + h, x + r, y + h);
+      shape.lineTo(x + w - r, y + h);
+      shape.quadraticCurveTo(x + w, y + h, x + w, y + h - r);
+      shape.lineTo(x + w, y + r);
+      shape.quadraticCurveTo(x + w, y, x + w - r, y);
+      shape.lineTo(x + r, y);
+      shape.quadraticCurveTo(x, y, x, y + r);
+
+      const points = shape.getPoints(32); 
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({
+        color: data.color,
+        transparent: data.opacity < 1,
+        opacity: data.opacity
+      });
+
+      this.el.removeObject3D('border');
+      const line = new THREE.LineLoop(geometry, material);
+      line.position.z = 0.001; 
+      line.raycast = () => {};
+      this.el.setObject3D('border', line);
+    },
+    remove: function () {
+      this.el.removeObject3D('border');
+    }
+  });
+
 }
